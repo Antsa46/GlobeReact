@@ -1,0 +1,518 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+
+/* ---------------- Terrarium (z=1..3) ---------------- */
+async function buildTerrariumMosaic(z = 2) {
+  const tiles = 1 << z;
+  const TILE = 256;
+  const W = tiles * TILE;
+  const H = tiles * TILE;
+
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "rgb(128,128,128)";
+  ctx.fillRect(0, 0, W, H);
+
+  const load = (x, y) =>
+    new Promise((res) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => res({ x, y, img });
+      img.onerror = () => res({ x, y, img: null });
+      img.src = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+    });
+
+  const jobs = [];
+  for (let y = 0; y < tiles; y++) for (let x = 0; x < tiles; x++) jobs.push(load(x, y));
+  const results = await Promise.all(jobs);
+  results.forEach(({ x, y, img }) => { if (img) ctx.drawImage(img, x*TILE, y*TILE); });
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  return { texture: tex, width: W, height: H };
+}
+
+/* ---------------- Natural Earth vesimaski ---------------- */
+const LAKES_110 = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_lakes.geojson";
+const LAKES_50  = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_lakes.geojson";
+const RIVERS_110 = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_rivers_lake_centerlines.geojson";
+
+async function fetchJSON(url){ const r=await fetch(url,{mode:"cors"}); if(!r.ok) throw new Error(url); return r.json(); }
+
+function lonLatToMercatorUV(lon, lat) {
+  const PI = Math.PI;
+  const u = (lon + PI) / (2 * PI);
+  const cl = Math.max(-1.4844222297453323, Math.min(1.4844222297453323, lat)); // ±~85°
+  const v = (1 - Math.log(Math.tan(PI/4 + cl/2)) / PI) * 0.5;
+  return [u, v];
+}
+function tracePoly(ctx, coords, W, H) {
+  ctx.beginPath();
+  coords.forEach((ring) => {
+    ring.forEach(([lon, lat], i) => {
+      const [u, v] = lonLatToMercatorUV(THREE.MathUtils.degToRad(lon), THREE.MathUtils.degToRad(lat));
+      const x = u * W, y = v * H;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+  });
+  ctx.closePath();
+}
+function drawPolyFill(ctx, coords, W, H) { tracePoly(ctx, coords, W, H); ctx.fill(); }
+function strokePoly(ctx, coords, W, H)   { tracePoly(ctx, coords, W, H); ctx.stroke(); }
+
+/* Vesimaski: järvet + joet, järvet “kutistetaan” kevyesti etteivät näytä paksuilta */
+async function buildWaterMaskCanvas(W, H, z){
+  try {
+    const [l110, l50, rv] = await Promise.allSettled([
+      fetchJSON(LAKES_110),
+      fetchJSON(LAKES_50),
+      fetchJSON(RIVERS_110)
+    ]);
+
+    const cvs = document.createElement("canvas");
+    cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext("2d");
+    ctx.clearRect(0,0,W,H);
+
+    // --- Järvet: käytä 50m aina kun saatavilla (sisäjärviä enemmän, esim. Suomessa) ---
+    const lakes =
+      (l50.status === "fulfilled") ? l50.value :
+      (l110.status === "fulfilled" ? l110.value : null);
+
+    if (lakes && Array.isArray(lakes.features)) {
+      ctx.fillStyle = "rgba(255,255,255,1)";
+      lakes.features.forEach((f) => {
+        const g = f.geometry; if (!g) return;
+        if (g.type === "Polygon") drawPolyFill(ctx, g.coordinates, W, H);
+        else if (g.type === "MultiPolygon") g.coordinates.forEach((p) => drawPolyFill(ctx, p, W, H));
+      });
+
+      // Hyvin kevyt “eroosio” reunoista -> järvet hieman sirommiksi (ei tuhoa pieniä järviä)
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(0.5, W/4096 * 0.6);
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+      lakes.features.forEach((f) => {
+        const g = f.geometry; if (!g) return;
+        if (g.type === "Polygon") strokePoly(ctx, g.coordinates, W, H);
+        else if (g.type === "MultiPolygon") g.coordinates.forEach((p) => strokePoly(ctx, p, W, H));
+      });
+      ctx.restore();
+    }
+
+    // --- Joet: ohuet, mutta varmemmin näkyvät kuin ennen ---
+    if (rv.status === "fulfilled" && Array.isArray(rv.value.features)) {
+      const rivers = rv.value;
+      ctx.strokeStyle = "rgba(255,255,255,1)";
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // aiempi erittäin ohut -> nostetaan hieman, silti siro
+      ctx.lineWidth = Math.max(0.35, W / 4096 * 0.45);
+      rivers.features.forEach((f) => {
+        const g = f.geometry; if (!g) return;
+        const drawLine = (line) => {
+          ctx.beginPath();
+          line.forEach(([lon, lat], i) => {
+            const [u, v] = lonLatToMercatorUV(
+              THREE.MathUtils.degToRad(lon),
+              THREE.MathUtils.degToRad(lat)
+            );
+            const x = u * W, y = v * H;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        };
+        if (g.type === "LineString") drawLine(g.coordinates);
+        else if (g.type === "MultiLineString") g.coordinates.forEach(drawLine);
+      });
+    }
+
+    return cvs;
+  } catch (e) {
+    console.warn("Water mask build failed:", e);
+    return null;
+  }
+}
+async function buildWaterMaskTexture(W, H, z) {
+  const cvs = await buildWaterMaskCanvas(W, H, z);
+  if (!cvs) return null;
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+/* ---------------- Aurinko (vuodenajat oikein, ei tupla-kallistusta) ---------------- */
+function daysSinceJ2000(dateUTC){
+  return (dateUTC.getTime() - Date.UTC(2000, 0, 1, 12, 0, 0)) / 86400000;
+}
+function sunDirectionFromDate(dateUTC) {
+  const d = daysSinceJ2000(dateUTC);
+  // keskiaurinko + kepler-korjaus -> ekliptinen pituus
+  const L = (280.460 + 0.9856474 * d) % 360;
+  const g = (357.528 + 0.9856003 * d) % 360;
+  const Lr = THREE.MathUtils.degToRad(L);
+  const gr = THREE.MathUtils.degToRad(g);
+  const lambda = Lr + THREE.MathUtils.degToRad(1.915) * Math.sin(gr)
+                     + THREE.MathUtils.degToRad(0.020) * Math.sin(2*gr);
+  const eps = THREE.MathUtils.degToRad(23.4397);              // maan akselin kaltevuus
+  const sinL = Math.sin(lambda), cosL = Math.cos(lambda);
+  const alpha = Math.atan2(Math.cos(eps) * sinL, cosL);       // oikea nousu
+  const delta = Math.asin(Math.sin(eps) * sinL);              // deklinaatio (+kesä N, −talvi N)
+  const GST = THREE.MathUtils.degToRad((280.46061837 + 360.98564736629 * d) % 360);
+  const H = GST - alpha;                                      // tuntikulma (Greenwich)
+  // ekvatoriaalinen yksikkövektori maailmassa (y=rotaatioakseli)
+  const x = Math.cos(delta) * Math.cos(H);
+  const y = Math.sin(delta);
+  const z = Math.cos(delta) * Math.sin(H);
+  return new THREE.Vector3(x, y, z).normalize();
+}
+
+/* ---------------- Shader (värit, displacement, päivä/yö, maski, rantapisteet) ---------------- */
+function GlobeMaterial({
+  terrariumTex,
+  waterMaskTex,
+  texelSize=[1/1024,1/512],
+  seaLevelMeters = 0,
+  dispScale = 1 / 6371000,
+  exaggeration = 30,
+  enableSun = false,
+  sunDir = new THREE.Vector3(1,0,0),
+  inlandCap = 150.0   // m – maskatut sisävedet sallitaan tähän asti merenpinnan yläpuolella
+}) {
+  const uniforms = useMemo(() => ({
+    terrarium: { value: terrariumTex },
+    waterMask: { value: waterMaskTex || null },
+    hasMask:   { value: waterMaskTex ? 1.0 : 0.0 },
+    seaLevel:  { value: seaLevelMeters },
+    dispScale: { value: dispScale * exaggeration },
+    texel:     { value: new THREE.Vector2(...texelSize) },
+    enableSun: { value: enableSun ? 1.0 : 0.0 },
+    sunDir:    { value: sunDir.clone().normalize() },
+    inlandCap: { value: inlandCap }
+  }), [terrariumTex, waterMaskTex, seaLevelMeters, dispScale, exaggeration, texelSize, enableSun, sunDir, inlandCap]);
+
+  const vertexShader = /* glsl */`
+    uniform sampler2D terrarium;
+    uniform float seaLevel;
+    uniform float dispScale;
+
+    varying vec2 vUvEQ;
+    varying vec3 vNormalW;
+
+    float terrariumMeters(vec3 rgb01){
+      vec3 c = rgb01 * 255.0;
+      return (c.r * 256.0 + c.g + c.b/256.0) - 32768.0;
+    }
+    void uvToLonLat(vec2 uv, out float lon, out float lat){
+      lon = (uv.x * 2.0 - 1.0) * 3.14159265359;
+      lat = (0.5 - uv.y) * 3.14159265359;
+    }
+    vec2 lonLatToMercatorUV(float lon, float lat){
+      float PI = 3.14159265359;
+      float u = (lon + PI) / (2.0 * PI);
+      float cl = clamp(lat, -1.48442222975, 1.48442222975);
+      float v = (1.0 - log(tan(PI/4.0 + cl/2.0)) / PI) * 0.5;
+      return vec2(u, v);
+    }
+
+    void main(){
+      vUvEQ = uv;
+      float lon, lat; uvToLonLat(uv, lon, lat);
+      vec2 uvM = lonLatToMercatorUV(lon, lat);
+      float meters = terrariumMeters(texture2D(terrarium, uvM).rgb);
+      float disp = (meters - seaLevel) * dispScale;
+
+      vec3 displaced = position + normalize(position) * disp;
+      vec4 wpos = modelMatrix * vec4(displaced, 1.0);
+      vNormalW = normalize(mat3(modelMatrix) * normalize(displaced));
+      gl_Position = projectionMatrix * viewMatrix * wpos;
+    }
+  `;
+
+  const fragmentShader = /* glsl */`
+    uniform sampler2D terrarium;
+    uniform sampler2D waterMask;
+    uniform float hasMask;
+    uniform float seaLevel;
+    uniform vec2  texel;
+    uniform float enableSun;
+    uniform vec3  sunDir;
+    uniform float inlandCap;
+
+    varying vec2 vUvEQ;
+    varying vec3 vNormalW;
+
+    float terrariumMeters(vec3 rgb01){
+      vec3 c = rgb01 * 255.0;
+      return (c.r * 256.0 + c.g + c.b/256.0) - 32768.0;
+    }
+    void uvToLonLat(vec2 uv, out float lon, out float lat){
+      lon = (uv.x * 2.0 - 1.0) * 3.14159265359;
+      lat = (0.5 - uv.y) * 3.14159265359;
+    }
+    vec2 lonLatToMercatorUV(float lon, float lat){
+      float PI = 3.14159265359;
+      float u = (lon + PI) / (2.0 * PI);
+      float cl = clamp(lat, -1.48442222975, 1.48442222975);
+      float v = (1.0 - log(tan(PI/4.0 + cl/2.0)) / PI) * 0.5;
+      return vec2(u, v);
+    }
+    float localRelief(vec2 uvM){
+      float hC = terrariumMeters(texture2D(terrarium, uvM).rgb);
+      float hN = terrariumMeters(texture2D(terrarium, uvM + vec2(0.0, -texel.y)).rgb);
+      float hS = terrariumMeters(texture2D(terrarium, uvM + vec2(0.0,  texel.y)).rgb);
+      float hE = terrariumMeters(texture2D(terrarium, uvM + vec2( texel.x, 0.0)).rgb);
+      float hW = terrariumMeters(texture2D(terrarium, uvM + vec2(-texel.x, 0.0)).rgb);
+      float r = max(max(abs(hN-hC), abs(hS-hC)), max(abs(hE-hC), abs(hW-hC)));
+      return r;
+    }
+    float hash12(vec2 p){
+      p = fract(p*vec2(123.34, 345.45));
+      p += dot(p, p+34.345);
+      return fract(p.x*p.y);
+    }
+    vec3 mix3(vec3 a, vec3 b, float t){ return mix(a,b,clamp(t,0.0,1.0)); }
+
+    void main(){
+      float lon, lat; uvToLonLat(vUvEQ, lon, lat);
+      vec2 uvM = lonLatToMercatorUV(lon, lat);
+      float meters = terrariumMeters(texture2D(terrarium, uvM).rgb);
+      float rel = meters - seaLevel;
+
+      // --- Vesipäätös: meri + maskin järvet/joet + matala-allas -heuristiikka ---
+      float mask = (hasMask > 0.5) ? texture2D(waterMask, uvM).r : 0.0;
+
+      // Alemmat kynnysarvot -> pienet järvet eivät katoa pelkän näytteenoton vuoksi
+      float lakeFactor = smoothstep(0.35, 0.75, mask) * smoothstep(inlandCap, 0.0, rel);
+
+      bool seaWater = (rel <= 0.0);
+      // Matalat sisäaltaat: hieman väljempi toleranssi
+      bool flatWater = (meters < seaLevel + 12.0) && (localRelief(uvM) < 12.0);
+
+      float wMask = max(lakeFactor, flatWater ? 1.0 : 0.0);
+      bool isWater = seaWater || (wMask > 0.12);
+
+      // --- Värit ---
+      vec3 color;
+      if (isWater){
+        float depth = clamp((seaLevel - meters) / 10000.0, 0.0, 1.0);
+        vec3 c0 = vec3(0.62,0.88,0.97);
+        vec3 c1 = vec3(0.28,0.68,0.86);
+        vec3 c2 = vec3(0.10,0.34,0.62);
+        vec3 c3 = vec3(0.04,0.16,0.35);
+        color = (depth < 0.33) ? mix(c0,c1, depth/0.33)
+              : (depth < 0.66) ? mix(c1,c2, (depth-0.33)/0.33)
+                               : mix(c2,c3, (depth-0.66)/0.34);
+        // Sisävesille aavistus vaaleutta (ei koske merta)
+        color = mix(color, vec3(0.70,0.88,0.98), clamp(lakeFactor,0.0,0.6)*0.5);
+      } else {
+        float landH = max(rel, 0.0);
+        vec3 lightG = vec3(0.86,0.97,0.76);
+        vec3 green  = vec3(0.35,0.70,0.35);
+        vec3 darkG  = vec3(0.18,0.45,0.20);
+        vec3 brown1 = vec3(0.72,0.58,0.40);
+        vec3 brown2 = vec3(0.55,0.40,0.25);
+        vec3 brown3 = vec3(0.40,0.28,0.18);
+        if (landH < 1000.0){
+          float t = clamp(landH / 1000.0, 0.0, 1.0);
+          color = (t < 0.5) ? mix3(lightG, green, t*2.0)
+                            : mix3(green, darkG, (t-0.5)*2.0);
+        } else {
+          float t = clamp((landH - 1000.0) / 4000.0, 0.0, 1.0);
+          color = (t < 0.5) ? mix3(brown1, brown2, t*2.0)
+                            : mix3(brown2, brown3, (t-0.5)*2.0);
+        }
+      }
+
+      // Rantaviivan mustat pisteet (±6 m kaista)
+      float shoreBand = 6.0;
+      float nearShore = 1.0 - clamp(abs(rel)/shoreBand, 0.0, 1.0);
+      float speckle = step(0.92, hash12(vUvEQ*vec2(4096.0,2048.0)));
+      float dots = speckle * nearShore;
+      color = mix(color, vec3(0.0), dots*0.6);
+
+      // Päivä/yö – kirkkaampi päivä, yö ei täysin musta
+      float lambert = max(dot(normalize(vNormalW), normalize(sunDir)), 0.0);
+      float lit = mix(1.0, 0.25 + 1.25 * lambert, enableSun);
+      color *= lit;
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  return <shaderMaterial attach="material" args={[{ uniforms, vertexShader, fragmentShader }]} />;
+}
+
+/* ---------------- Globe ---------------- */
+const SIDEREAL_DAY = 86164;
+
+function Globe({ z, seaLevel, exaggeration, autoSpin, realSunEnabled, dateForSun }) {
+  const [terr, setTerr] = useState(null);
+  const [maskTex, setMaskTex] = useState(null);
+  const groupRef = useRef();
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const t = await buildTerrariumMosaic(z);
+      if (!alive) return;
+      setTerr(t);
+      const mask = await buildWaterMaskTexture(t.width, t.height, z);
+      if (!alive) return;
+      setMaskTex(mask);
+    })();
+    return () => { alive = false; };
+  }, [z]);
+
+  // Ei pysyvää 23.44° kallistusta – vuodenajan deklinaatio tulee sunDir:stä
+  useFrame((_, delta) => {
+    if (autoSpin && groupRef.current) {
+      groupRef.current.rotation.y += delta * (2 * Math.PI / SIDEREAL_DAY) * 8000;
+    }
+  });
+
+  const sunDir = useMemo(
+    () => (realSunEnabled ? sunDirectionFromDate(dateForSun) : new THREE.Vector3(1,0,0)),
+    [realSunEnabled, dateForSun]
+  );
+
+  return (
+    <group ref={groupRef}>
+      <mesh>
+        <sphereGeometry args={[1, 128, 64]} />
+        {terr ? (
+          <GlobeMaterial
+            terrariumTex={terr.texture}
+            waterMaskTex={maskTex}
+            texelSize={[1/terr.width, 1/terr.height]}
+            seaLevelMeters={seaLevel}
+            exaggeration={exaggeration}
+            enableSun={!!realSunEnabled}
+            sunDir={sunDir}
+            inlandCap={180.0}   // ← sallitaan sisävedet jopa 180 m mpy merenpinnan yläpuolella
+          />
+        ) : (<meshStandardMaterial color="#123" />)}
+      </mesh>
+    </group>
+  );
+}
+
+/* ---------------- Kamera + UI ---------------- */
+function UseNorthUp({ controlsRef }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    camera.up.set(0,1,0);
+    camera.position.set(0,0,2.4);
+    camera.lookAt(0,0,0);
+    controlsRef.current?.reset();
+  }, []);
+  return null;
+}
+
+export default function App() {
+  const [z, setZ] = useState(2);
+  const [sea, setSea] = useState(0);
+  const [exag, setExag] = useState(30);
+  const [auto, setAuto] = useState(false);
+  const [realSun, setRealSun] = useState(false);
+
+  // Päivä (ei kellonaikaa) -> vuodenaika
+  const [dateStr, setDateStr] = useState(() => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getUTCDate())} / ${pad(d.getUTCMonth()+1)} / ${d.getUTCFullYear()}`;
+  });
+  const dateForSun = useMemo(() => {
+    const m = dateStr.match(/(\d+)\s*\/\s*(\d+)\s*\/\s*(\d{4})/);
+    let d = new Date();
+    if (m) d = new Date(Date.UTC(+m[3], +m[2]-1, +m[1], 12, 0, 0)); // keskipäivä UTC
+    return d;
+  }, [dateStr]);
+
+  const controlsRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "0") setSea(0); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div style={{ height: "100vh", background: "#0b1220", color: "#fff" }}>
+      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:10, padding:"8px 12px",
+        display:"flex", gap:12, alignItems:"center", flexWrap:"wrap",
+        background:"rgba(11,18,32,0.85)", backdropFilter:"blur(6px)" }}>
+        <strong>Tellus</strong>
+
+        <label>Laatu:</label>
+        <select value={z} onChange={(e)=>setZ(+e.target.value)}>
+          <option value={1}>z=1 (512×256)</option>
+          <option value={2}>z=2 (1024×512)</option>
+          <option value={3}>z=3 (2048×1024)</option>
+        </select>
+
+        <label style={{marginLeft:8}}>Merenpinta:</label>
+        <input type="range" min={-1000} max={1000} value={sea} onChange={(e)=>setSea(+e.target.value)} style={{ width: 180 }}/>
+        <input type="number" value={sea} onChange={(e)=>setSea(Number(e.target.value))} style={{ width: 80 }}/>
+        <span>m</span>
+        <button onClick={()=>setSea(0)}>Nollaa merenpinta</button>
+
+        <label style={{marginLeft:8}}>Korostus:</label>
+        <input type="range" min={5} max={80} value={exag} onChange={(e)=>setExag(+e.target.value)} style={{ width: 160 }}/>
+        <span>{exag}×</span>
+
+        <button onClick={()=>setAuto(a=>!a)}>{auto ? "Auto-kierto: ON" : "Auto-kierto: OFF"}</button>
+        <button onClick={()=>setRealSun(s=>!s)}>{realSun ? "Todellinen aurinko: ON" : "Todellinen aurinko: OFF (päivä kaikkialla)"}</button>
+
+        <label>Päivä (UTC):</label>
+        <input type="text" value={dateStr} onChange={(e)=>setDateStr(e.target.value)} style={{ width: 130 }} title="pp / kk / vvvv" />
+
+        <button onClick={()=>controlsRef.current?.reset()}>Reset näkymä</button>
+      </div>
+      <div style={{ height: 48 }} />
+
+      <Canvas
+        dpr={[1,1]}
+        camera={{ position:[0,0,2.4], fov:45 }}
+        gl={({ toneMapping: THREE.ACESFilmicToneMapping, outputColorSpace: THREE.SRGBColorSpace })}
+        onCreated={({ gl }) => { gl.toneMappingExposure = 1.12; }}
+      >
+        <color attach="background" args={["#0b1220"]} />
+        {/* “päivä kaikkialla” kun aurinko OFF */}
+        <ambientLight intensity={realSun ? 0.28 : 0.75} />
+        <hemisphereLight args={[0xbfd7ff, 0x0b1220, realSun ? 0.30 : 0.5]} />
+        {realSun && <directionalLight position={[3,2,1]} intensity={1.3} />}
+
+        <Globe
+          z={z}
+          seaLevel={sea}
+          exaggeration={exag}
+          autoSpin={auto}
+          realSunEnabled={realSun}
+          dateForSun={dateForSun}
+        />
+
+        <OrbitControls
+          ref={controlsRef}
+          enablePan enableRotate enableZoom
+          autoRotate={false}
+          minDistance={1.6} maxDistance={3.2}
+          rotateSpeed={0.7} panSpeed={0.6} zoomSpeed={0.8}
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+        />
+        <UseNorthUp controlsRef={controlsRef} />
+      </Canvas>
+    </div>
+  );
+}
