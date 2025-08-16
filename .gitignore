@@ -1,0 +1,12 @@
+node_modules
+dist
+.vite
+
+globe-local/node_modules
+globe-local/dist
+globe-local/.vite
+
+.env
+.env.local
+.DS_Store
+Thumbs.db
