@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useMemo, useState } from "react";
 import GlobeCanvas from "./components/GlobeCanvas";
 import WaterControls from "./components/controls/WaterControls";
@@ -12,8 +11,7 @@ export default function App() {
   const [realSun, setRealSun] = useState(false);
 
   const [dateStr, setDateStr] = useState(() => {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
+    const d = new Date(); const pad = n => String(n).padStart(2,"0");
     return `${pad(d.getUTCDate())} / ${pad(d.getUTCMonth()+1)} / ${d.getUTCFullYear()}`;
   });
   const dateForSun = useMemo(() => {
@@ -26,28 +24,30 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false);
 
   // Mask builder
-  const [riverWidthFactor, setRiverWidthFactor] = useState(1.0);
+  const [riverWidthFactor, setRiverWidthFactor] = useState(0.2);
   const [lakeErodePx, setLakeErodePx] = useState(0.6);
-  const [inlandCap, setInlandCap] = useState(2000.0);
+  const [inlandCap, setInlandCap] = useState(2000);
 
-  // Shader UI: 0..10 → shader +0.45..-0.45
+  // Shader
   const [riverNarrowUI, setRiverNarrowUI] = useState(6);
   const riverNarrow = useMemo(() => {
-    const t = Math.max(0, Math.min(10, riverNarrowUI)) / 10;
-    return (1 - t) * (+0.45) + t * (-0.45);
+    const t = Math.max(0, Math.min(6, riverNarrowUI)) / 6;
+    return (1 - t) * (+0.30) + t * (-0.30);
   }, [riverNarrowUI]);
-
-  const [riverSharpness, setRiverSharpness] = useState(1.4);
+  const [riverSharpness, setRiverSharpness] = useState(1.0);
   const [riverMix, setRiverMix] = useState(0.12);
   const [lakeMix, setLakeMix] = useState(0.35);
 
+  // Borders
+  const [showBorders, setShowBorders] = useState(false);
+  const [borderWidthPx, setBorderWidthPx] = useState(0.6);
+  const [borderOpacity, setBorderOpacity] = useState(0.7);
+
   return (
     <div style={{ height:"100vh", background:"#0b1220", color:"#fff" }}>
-      <div style={{
-        position:"fixed", top:0, left:0, right:0, zIndex:10, padding:"8px 12px",
+      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:10, padding:"8px 12px",
         display:"flex", gap:12, alignItems:"center", flexWrap:"wrap",
-        background:"rgba(11,18,32,0.85)", backdropFilter:"blur(6px)"
-      }}>
+        background:"rgba(11,18,32,0.85)", backdropFilter:"blur(6px)" }}>
         <strong>Tellus</strong>
 
         <label>Laatu:</label>
@@ -58,24 +58,20 @@ export default function App() {
         </select>
 
         <label style={{marginLeft:8}}>Merenpinta:</label>
-        <input type="range" min={-1000} max={1000} value={sea}
-          onChange={(e)=>setSea(+e.target.value)} style={{width:180}} />
-        <input type="number" value={sea} onChange={(e)=>setSea(Number(e.target.value))}
-          style={{width:80}} />
+        <input type="range" min={-1000} max={1000} value={sea} onChange={(e)=>setSea(+e.target.value)} style={{ width: 180 }}/>
+        <input type="number" value={sea} onChange={(e)=>setSea(Number(e.target.value))} style={{ width: 80 }}/>
         <span>m</span>
         <button onClick={()=>setSea(0)}>Nollaa merenpinta</button>
 
         <label style={{marginLeft:8}}>Korostus:</label>
-        <input type="range" min={5} max={80} value={exag}
-          onChange={(e)=>setExag(+e.target.value)} style={{width:160}} />
+        <input type="range" min={5} max={80} value={exag} onChange={(e)=>setExag(+e.target.value)} style={{ width: 160 }}/>
         <span>{exag}×</span>
 
-        <button onClick={()=>setAuto(a=>!a)}>{auto ? "Auto-kierto: ON":"Auto-kierto: OFF"}</button>
-        <button onClick={()=>setRealSun(s=>!s)}>{realSun ? "Todellinen aurinko: ON":"Todellinen aurinko: OFF"}</button>
+        <button onClick={()=>setAuto(a=>!a)}>{auto ? "Auto-kierto: ON" : "Auto-kierto: OFF"}</button>
+        <button onClick={()=>setRealSun(s=>!s)}>{realSun ? "Todellinen aurinko: ON" : "Todellinen aurinko: OFF"}</button>
 
         <label>Päivä (UTC):</label>
-        <input type="text" value={dateStr} onChange={(e)=>setDateStr(e.target.value)}
-          style={{width:130}} title="pp / kk / vvvv" />
+        <input type="text" value={dateStr} onChange={(e)=>setDateStr(e.target.value)} style={{ width: 130 }} title="pp / kk / vvvv" />
 
         <button className="panel-toggle" onClick={()=>setPanelOpen(o=>!o)}>⚙</button>
       </div>
@@ -90,14 +86,28 @@ export default function App() {
         riverSharpness={riverSharpness} setRiverSharpness={setRiverSharpness}
         riverMix={riverMix} setRiverMix={setRiverMix}
         lakeMix={lakeMix} setLakeMix={setLakeMix}
+        showBorders={showBorders} setShowBorders={setShowBorders}
+        borderWidthPx={borderWidthPx} setBorderWidthPx={setBorderWidthPx}
+        borderOpacity={borderOpacity} setBorderOpacity={setBorderOpacity}
       />
 
       <GlobeCanvas
-        z={z} seaLevel={sea} exaggeration={exag}
-        autoSpin={auto} realSunEnabled={realSun} dateForSun={dateForSun}
-        riverWidthFactor={riverWidthFactor} lakeErodePx={lakeErodePx} inlandCap={inlandCap}
-        riverNarrow={riverNarrow} riverSharpness={riverSharpness}
-        riverMix={riverMix} lakeMix={lakeMix}
+        z={z}
+        seaLevel={sea}
+        exaggeration={exag}
+        autoSpin={auto}
+        realSunEnabled={realSun}
+        dateForSun={dateForSun}
+        riverWidthFactor={riverWidthFactor}
+        lakeErodePx={lakeErodePx}
+        inlandCap={inlandCap}
+        riverNarrow={riverNarrow}
+        riverSharpness={riverSharpness}
+        riverMix={riverMix}
+        lakeMix={lakeMix}
+        showBorders={showBorders}
+        borderWidthPx={borderWidthPx}
+        borderOpacity={borderOpacity}
       />
     </div>
   );
