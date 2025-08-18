@@ -32,5 +32,12 @@
   display: grid;
   gap: 10px;
 }
+
+
+.slide-over {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .ctrl{ display:grid; grid-template-columns: 1fr 160px auto; align-items:center; gap:10px; }
 .ctrl input[type="range"]{ width: 100%; }

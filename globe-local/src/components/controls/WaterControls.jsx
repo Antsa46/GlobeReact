@@ -2,120 +2,125 @@ import React from "react";
 import "../../styles/panel.css";
 
 export default function WaterControls({
-  open, setOpen,
+  open,
+  setOpen,
 
-  // Mask builder
+  // mask builder
   riverWidthFactor, setRiverWidthFactor,
   lakeErodePx, setLakeErodePx,
   inlandCap, setInlandCap,
 
-  // Shader
+  // shader
   riverNarrowUI, setRiverNarrowUI,
   riverSharpness, setRiverSharpness,
   riverMix, setRiverMix,
   lakeMix, setLakeMix,
 
-  // Borders
-  showBorders = false, setShowBorders = () => {},
-  borderWidthPx, setBorderWidthPx = () => {},
-  borderOpacity, setBorderOpacity = () => {},
-}) {
-  const safeBorderWidth = Number(borderWidthPx ?? 0.6);
-  const safeBorderOpacity = Number(borderOpacity ?? 0.7);
+  // borders
+  showBorders, setShowBorders,
+  borderWidthPx, setBorderWidthPx,
+  borderOpacity, setBorderOpacity,
 
+  // lisäosiot (Kaupungit jne.)
+  children,
+}) {
   return (
     <aside className={`slide-over ${open ? "open" : ""}`}>
-
-      <div className="slide-over__header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <h3 style={{margin:0}}>Joet & järvet</h3>
-        <button className="panel-toggle" onClick={()=>setOpen(false)}>✕</button>
+      <div className="slide-over__header" style={{display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+        <h2 style={{margin:0}}>Joet & järvet</h2>
+        <button onClick={() => setOpen(false)} style={{
+          width:36, height:36, borderRadius:10, border:"none",
+          background:"rgba(255,255,255,0.12)", color:"#fff", cursor:"pointer"
+        }}>✕</button>
       </div>
 
       <div className="slide-over__body">
-        {/* Joet */}
+        {/* Joet & järvet */}
         <div className="ctrl">
-          <label>Joen perusleveys</label>
-          <input type="range" min={0.1} max={2.0} step={0.01}
-                 value={riverWidthFactor}
-                 onChange={(e)=>setRiverWidthFactor(+e.target.value)} />
-          <span>{riverWidthFactor.toFixed(2)}×</span>
+          <div>Joen perusleveys</div>
+          <input type="range" min={0.1} max={2.0} step={0.02}
+            value={riverWidthFactor}
+            onChange={(e)=>setRiverWidthFactor(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{riverWidthFactor.toFixed(2)}×</div>
         </div>
 
         <div className="ctrl">
-          <label>Joen kavennus (shader)</label>
+          <div>Joen kavennus<br/>(shader)</div>
           <input type="range" min={0} max={6} step={1}
-                 value={riverNarrowUI}
-                 onChange={(e)=>setRiverNarrowUI(+e.target.value)} />
-          <span>{riverNarrowUI}</span>
+            value={riverNarrowUI}
+            onChange={(e)=>setRiverNarrowUI(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{riverNarrowUI}</div>
         </div>
 
         <div className="ctrl">
-          <label>Joen terävyys (shader)</label>
-          <input type="range" min={0.6} max={6} step={0.1}
-                 value={riverSharpness}
-                 onChange={(e)=>setRiverSharpness(+e.target.value)} />
-          <span>{riverSharpness.toFixed(1)}</span>
+          <div>Joen terävyys<br/>(shader)</div>
+          <input type="range" min={0.0} max={1.5} step={0.01}
+            value={riverSharpness}
+            onChange={(e)=>setRiverSharpness(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{riverSharpness.toFixed(2)}</div>
         </div>
 
         <div className="ctrl">
-          <label>Joen vaaleus (shader)</label>
-          <input type="range" min={0} max={1} step={0.01}
-                 value={riverMix}
-                 onChange={(e)=>setRiverMix(+e.target.value)} />
-          <span>{riverMix.toFixed(2)}</span>
-        </div>
-
-        {/* Järvet */}
-        <div className="ctrl">
-          <label>Järvien reunakutistus (px @4096)</label>
-          <input type="range" min={0} max={2} step={0.1}
-                 value={lakeErodePx}
-                 onChange={(e)=>setLakeErodePx(+e.target.value)} />
-          <span>{lakeErodePx.toFixed(1)} px</span>
+          <div>Joen vaaleus<br/>(shader)</div>
+          <input type="range" min={0.0} max={1.0} step={0.01}
+            value={riverMix}
+            onChange={(e)=>setRiverMix(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{riverMix.toFixed(2)}</div>
         </div>
 
         <div className="ctrl">
-          <label>Järvien vaaleus (shader)</label>
-          <input type="range" min={0} max={1} step={0.01}
-                 value={lakeMix}
-                 onChange={(e)=>setLakeMix(+e.target.value)} />
-          <span>{lakeMix.toFixed(2)}</span>
+          <div>Järvien reunakutistus<br/>(px @4096)</div>
+          <input type="range" min={0.0} max={3.0} step={0.1}
+            value={lakeErodePx}
+            onChange={(e)=>setLakeErodePx(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{lakeErodePx.toFixed(1)} px</div>
         </div>
 
         <div className="ctrl">
-          <label>Järvien inlandCap (m)</label>
+          <div>Järvien vaaleus<br/>(shader)</div>
+          <input type="range" min={0.0} max={1.0} step={0.01}
+            value={lakeMix}
+            onChange={(e)=>setLakeMix(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{lakeMix.toFixed(2)}</div>
+        </div>
+
+        <div className="ctrl">
+          <div>Järvien inlandCap<br/>(m)</div>
           <input type="range" min={0} max={4000} step={50}
-                 value={inlandCap}
-                 onChange={(e)=>setInlandCap(+e.target.value)} />
-          <span>{inlandCap.toFixed(0)} m</span>
+            value={inlandCap}
+            onChange={(e)=>setInlandCap(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{inlandCap} m</div>
         </div>
 
-        {/* --- Maiden rajat --- */}
-        <h3 style={{marginTop:10}}>Maiden rajat</h3>
+        {/* Maiden rajat */}
+        <h3 style={{margin:"18px 0 8px 0"}}>Maiden rajat</h3>
 
         <div className="ctrl">
-          <label>Näytä rajat</label>
+          <div>Näytä rajat</div>
           <input type="checkbox"
-                 checked={!!showBorders}
-                 onChange={(e)=>setShowBorders(e.target.checked)} />
-          <span>{showBorders ? "ON" : "OFF"}</span>
+            checked={!!showBorders}
+            onChange={(e)=>setShowBorders(e.target.checked)} />
+          <div style={{textAlign:"right", opacity:.8}}>{showBorders ? "ON" : "OFF"}</div>
         </div>
 
         <div className="ctrl">
-          <label>Viivan paksuus (px @4096)</label>
-          <input type="range" min={0} max={3} step={0.1}
-                 value={safeBorderWidth}
-                 onChange={(e)=>setBorderWidthPx(+e.target.value)} />
-          <span>{safeBorderWidth.toFixed(1)} px</span>
+          <div>Viivan paksuus (px<br/>@4096)</div>
+          <input type="range" min={0.0} max={2.0} step={0.1}
+            value={borderWidthPx}
+            onChange={(e)=>setBorderWidthPx(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{borderWidthPx.toFixed(1)} px</div>
         </div>
 
         <div className="ctrl">
-          <label>Viivan tummuus</label>
-          <input type="range" min={0} max={1} step={0.05}
-                 value={safeBorderOpacity}
-                 onChange={(e)=>setBorderOpacity(+e.target.value)} />
-          <span>{safeBorderOpacity.toFixed(2)}</span>
+          <div>Viivan tummuus</div>
+          <input type="range" min={0.0} max={1.0} step={0.01}
+            value={borderOpacity}
+            onChange={(e)=>setBorderOpacity(Number(e.target.value))}/>
+          <div style={{textAlign:"right"}}>{borderOpacity.toFixed(2)}</div>
         </div>
+
+        {/* --- tänne lisäosat: Kaupungit jne. --- */}
+        {children}
       </div>
     </aside>
   );

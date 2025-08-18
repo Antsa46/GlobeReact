@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import GlobeCanvas from "./components/GlobeCanvas";
 import WaterControls from "./components/controls/WaterControls";
+import CitiesControls from "./components/hud/CitiesControls.jsx";
 import "./styles/App.css";
 
 export default function App() {
@@ -43,6 +44,11 @@ export default function App() {
   const [borderWidthPx, setBorderWidthPx] = useState(0.6);
   const [borderOpacity, setBorderOpacity] = useState(0.7);
 
+  // Cities
+  const [showCities, setShowCities] = useState(true);
+  const [minCityPop, setMinCityPop] = useState(100000);
+  const [cityColorHex, setCityColorHex] = useState("#ffffff");
+
   return (
     <div style={{ height:"100vh", background:"#0b1220", color:"#fff" }}>
       <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:10, padding:"8px 12px",
@@ -58,38 +64,52 @@ export default function App() {
         </select>
 
         <label style={{marginLeft:8}}>Merenpinta:</label>
-        <input type="range" min={-1000} max={1000} value={sea} onChange={(e)=>setSea(+e.target.value)} style={{ width: 180 }}/>
-        <input type="number" value={sea} onChange={(e)=>setSea(Number(e.target.value))} style={{ width: 80 }}/>
+        <input type="range" min={-1000} max={1000} value={sea}
+               onChange={(e)=>setSea(+e.target.value)} style={{ width: 180 }}/>
+        <input type="number" value={sea} onChange={(e)=>setSea(Number(e.target.value))}
+               style={{ width: 80 }}/>
         <span>m</span>
         <button onClick={()=>setSea(0)}>Nollaa merenpinta</button>
 
         <label style={{marginLeft:8}}>Korostus:</label>
-        <input type="range" min={5} max={80} value={exag} onChange={(e)=>setExag(+e.target.value)} style={{ width: 160 }}/>
+        <input type="range" min={5} max={80} value={exag}
+               onChange={(e)=>setExag(+e.target.value)} style={{ width: 160 }}/>
         <span>{exag}×</span>
 
         <button onClick={()=>setAuto(a=>!a)}>{auto ? "Auto-kierto: ON" : "Auto-kierto: OFF"}</button>
         <button onClick={()=>setRealSun(s=>!s)}>{realSun ? "Todellinen aurinko: ON" : "Todellinen aurinko: OFF"}</button>
 
         <label>Päivä (UTC):</label>
-        <input type="text" value={dateStr} onChange={(e)=>setDateStr(e.target.value)} style={{ width: 130 }} title="pp / kk / vvvv" />
+        <input type="text" value={dateStr} onChange={(e)=>setDateStr(e.target.value)}
+               style={{ width: 130 }} title="pp / kk / vvvv" />
 
         <button className="panel-toggle" onClick={()=>setPanelOpen(o=>!o)}>⚙</button>
       </div>
       <div style={{ height: 48 }} />
 
+      {/* Oikean reunan paneeli */}
       <WaterControls
-        open={panelOpen} setOpen={setPanelOpen}
-        riverWidthFactor={riverWidthFactor} setRiverWidthFactor={setRiverWidthFactor}
-        lakeErodePx={lakeErodePx} setLakeErodePx={setLakeErodePx}
-        inlandCap={inlandCap} setInlandCap={setInlandCap}
-        riverNarrowUI={riverNarrowUI} setRiverNarrowUI={setRiverNarrowUI}
-        riverSharpness={riverSharpness} setRiverSharpness={setRiverSharpness}
-        riverMix={riverMix} setRiverMix={setRiverMix}
-        lakeMix={lakeMix} setLakeMix={setLakeMix}
-        showBorders={showBorders} setShowBorders={setShowBorders}
-        borderWidthPx={borderWidthPx} setBorderWidthPx={setBorderWidthPx}
-        borderOpacity={borderOpacity} setBorderOpacity={setBorderOpacity}
-      />
+  open={panelOpen} setOpen={setPanelOpen}
+  riverWidthFactor={riverWidthFactor} setRiverWidthFactor={setRiverWidthFactor}
+  lakeErodePx={lakeErodePx} setLakeErodePx={setLakeErodePx}
+  inlandCap={inlandCap} setInlandCap={setInlandCap}
+  riverNarrowUI={riverNarrowUI} setRiverNarrowUI={setRiverNarrowUI}
+  riverSharpness={riverSharpness} setRiverSharpness={setRiverSharpness}
+  riverMix={riverMix} setRiverMix={setRiverMix}
+  lakeMix={lakeMix} setLakeMix={setLakeMix}
+  showBorders={showBorders} setShowBorders={setShowBorders}
+  borderWidthPx={borderWidthPx} setBorderWidthPx={setBorderWidthPx}
+  borderOpacity={borderOpacity} setBorderOpacity={setBorderOpacity}
+>
+  <CitiesControls
+    showCities={showCities}
+    setShowCities={setShowCities}
+    minCityPop={minCityPop}
+    setMinCityPop={setMinCityPop}
+    cityColorHex={cityColorHex}
+    setCityColorHex={setCityColorHex}
+  />
+</WaterControls>
 
       <GlobeCanvas
         z={z}
@@ -108,6 +128,10 @@ export default function App() {
         showBorders={showBorders}
         borderWidthPx={borderWidthPx}
         borderOpacity={borderOpacity}
+        // kaupungit globelle
+        showCities={showCities}
+        minCityPop={minCityPop}
+        cityColorHex={cityColorHex}
       />
     </div>
   );

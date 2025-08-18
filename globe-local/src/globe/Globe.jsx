@@ -6,6 +6,7 @@ import { buildTerrariumMosaic } from "../lib/terrain/terrarium.js";
 import { buildWaterMaskTexture } from "../lib/water/waterMask.js";
 import { buildBordersMaskTexture } from "../lib/borders/bordersMask.js";
 import { sunDirectionFromDate } from "../lib/sun/astronomy.js";
+import CitiesFeature from "../features/CitiesFeature.jsx";
 
 const SIDEREAL_DAY = 86164;
 
@@ -24,15 +25,20 @@ export default function Globe({
   riverMix,
   lakeMix,
 
-  // borders-UI:sta (lisätty WaterControlsiin alla)
+  // borders
   showBorders = false,
   borderWidthPx = 0.8,
   borderOpacity = 0.8,
-  borderColor = [0.08, 0.10, 0.13], // tummahko sinertävä oletus
+  borderColor = [0.08, 0.10, 0.13],
 
   // mask builder
   riverWidthFactor,
   lakeErodePx,
+
+  // kaupungit
+  showCities = true,
+  minCityPop = 100000,
+  cityColorHex = "#ffffff",
 }) {
   const [terr, setTerr] = useState(null);
   const [maskTex, setMaskTex] = useState(null);
@@ -64,7 +70,6 @@ export default function Globe({
     return () => { alive = false; };
   }, [z, riverWidthFactor, lakeErodePx, borderWidthPx]);
 
-  // varmistus: pyöritetään myös ilman OrbitControlsin autoRotatea
   useFrame((_, delta) => {
     if (autoSpin && groupRef.current) {
       groupRef.current.rotation.y += delta * (2 * Math.PI / SIDEREAL_DAY) * 8000;
@@ -95,7 +100,6 @@ export default function Globe({
             riverSharpness={riverSharpness}
             riverMix={riverMix}
             lakeMix={lakeMix}
-            // borders-uniformit
             showBorders={showBorders}
             borderOpacity={borderOpacity}
             borderColor={borderColor}
@@ -104,6 +108,15 @@ export default function Globe({
           <meshStandardMaterial color="#123" />
         )}
       </mesh>
+
+      {/* Kaupunkipisteet overlaynä */}
+      <CitiesFeature
+        scene={groupRef.current?.parent}
+        radius={1}
+        showCities={showCities}
+        minCityPop={minCityPop}
+        cityColorHex={cityColorHex}
+      />
     </group>
   );
 }
