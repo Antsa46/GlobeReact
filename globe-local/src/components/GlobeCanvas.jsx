@@ -3,11 +3,10 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Globe from "../globe/Globe.jsx";
 import ZoomHUD from "./hud/ZoomHUD.jsx";
+import CountryInfoFeature from "../features/CountryInfoFeature.jsx";
 
 export default function GlobeCanvas(props) {
   const { autoSpin, ...globeProps } = props;
-
-  // ZoomHUD tarvitsee viitteen OrbitControls-olioon
   const controlsRef = useRef(null);
 
   return (
@@ -19,16 +18,17 @@ export default function GlobeCanvas(props) {
         {/* tausta */}
         <color attach="background" args={["#0b1220"]} />
 
-        {/* kevyt perusvalo fallback-materiaaleille */}
+        {/* perusvalot */}
         <ambientLight intensity={0.6} />
         <directionalLight position={[2.5, 1.5, 2.0]} intensity={0.6} />
 
         <Suspense fallback={null}>
-          {/* Globen oma autokierto pidetään pois päältä – pyöritämme kameraa */}
           <Globe {...globeProps} autoSpin={false} />
         </Suspense>
 
-        {/* Koko maailman autokierto OrbitControlsilla */}
+        {/* UUSI: maa-info toimii Canvasin sisällä ja piirtää Html-overlayn kursorin kohtaan */}
+        <CountryInfoFeature holdMs={3000} />
+
         <OrbitControls
           ref={controlsRef}
           makeDefault
@@ -38,14 +38,10 @@ export default function GlobeCanvas(props) {
           dampingFactor={0.06}
           rotateSpeed={0.6}
           autoRotate={!!autoSpin}
-          autoRotateSpeed={0.25} // säädä makusi mukaan
-          // enableZoom
-          // minDistance={1.4}
-          // maxDistance={4.0}
+          autoRotateSpeed={0.25}
         />
       </Canvas>
 
-      {/* HUD tarvitsee saman controlsRefin */}
       <ZoomHUD controlsRef={controlsRef} />
     </div>
   );

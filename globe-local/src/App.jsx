@@ -6,6 +6,7 @@ import BordersSection from "./components/sections/BordersSection.jsx";
 import CitiesSection from "./components/sections/CitiesSection.jsx";
 import "./styles/App.css";
 import "./styles/panel.css";
+import "./styles/hud.css";
 
 export default function App() {
   const [z, setZ] = useState(2);
