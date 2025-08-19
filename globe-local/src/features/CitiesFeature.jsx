@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import CitiesOverlay from "../components/CitiesOverlay";
@@ -10,18 +10,20 @@ const RAD = 180 / Math.PI;
 const EARTH_R = 6371;        // km
 const MAX_PICK_KM = 120;     // sietoraja lähimmälle
 
-// *** Sama viitekehys kuin klikkauksessa ***
-// Klikistä johdettu: lon = -(180 - phiDeg)  ->  phiDeg = 180 + lon
+// *** Sama viitekehys kuin onnistuneessa klikkauksessa ***
+// Klikistä saadaan: lon = -(180 - phiDeg)  =>  phiDeg = 180 + lon
+// Siksi labelin sijaintiin käytetään: φ = (180 + lon)
 function lonLatToVec3(lonDeg, latDeg, radius = 1.0) {
   const lat = latDeg * DEG;
-  const phi = (180 + lonDeg) * DEG;          // << korjaus: + eikä -
+  const phi = (180 + lonDeg) * DEG;    // <-- korjattu: + eikä -
   const cosLat = Math.cos(lat);
   return new THREE.Vector3(
-    -radius * Math.cos(phi) * cosLat,
-    +radius * Math.sin(lat),
-    +radius * Math.sin(phi) * cosLat
+    -radius * Math.cos(phi) * cosLat,   // X
+    +radius * Math.sin(lat),            // Y
+    +radius * Math.sin(phi) * cosLat    // Z
   );
 }
+
 function angularDistanceRad(lat1, lon1, lat2, lon2) {
   const φ1 = lat1 * DEG, φ2 = lat2 * DEG;
   const Δφ = (lat2 - lat1) * DEG;
@@ -81,7 +83,7 @@ export default function CitiesFeature({
     // φ = atan2(z, -x)  (sauma +X)
     let phiDeg = Math.atan2(z, -x) * RAD;
     if (phiDeg < 0) phiDeg += 360;
-    const lon = -(180 - phiDeg);   // tämä on sinulla todetusti oikein
+    const lon = -(180 - phiDeg); // tämä on sinulla todetusti oikein
 
     if (!cities.length) return;
 
@@ -91,38 +93,14 @@ export default function CitiesFeature({
       const ang = angularDistanceRad(lat, lon, c.lat, c.lon);
       if (ang < bestRad) { bestRad = ang; best = c; }
     }
+
     const km = EARTH_R * bestRad;
     if (!best || km > MAX_PICK_KM) { setLabel(null); return; }
 
     setLabel({ name: best.name, pop: best.pop, lon: best.lon, lat: best.lat });
   }, [cities]);
 
-  // Yhden klikin sulkeminen: viive + dblclick peruu
-  const clickTimerRef = useRef(null);
-  useEffect(() => {
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
-
-    const onClick = () => {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = setTimeout(() => setLabel(null), 220);
-    };
-    const onDbl = () => {
-      // käyttäjä tuplaklikkaa -> ei suljeta labelia klikkien välissä
-      clearTimeout(clickTimerRef.current);
-    };
-
-    canvas.addEventListener("click", onClick);
-    canvas.addEventListener("dblclick", onDbl);
-
-    return () => {
-      clearTimeout(clickTimerRef.current);
-      canvas.removeEventListener("click", onClick);
-      canvas.removeEventListener("dblclick", onDbl);
-    };
-  }, []);
-
-  // Label paikoilleen – suoraan pinnalle (ei nostoa)
+  // Label paikoilleen – suoraan pinnalle, ei nostoa
   const labelPos = useMemo(() => {
     if (!label) return null;
     return lonLatToVec3(label.lon, label.lat, radius);
@@ -138,18 +116,19 @@ export default function CitiesFeature({
           opacity={0.75}
           blending="normal"
           colorHex={cityColorHex}
-          onPickPoint={onPickPoint} // tuplaklikki -> valitse
+          onPickPoint={onPickPoint}
         />
       )}
 
-      {/* Klikatun kaupungin label */}
+      {/* Klikatun kaupungin label – klikkaa sulkeaksesi */}
       {label && labelPos && (
         <Html
           position={labelPos}
           center
-          // label ei estä klikkejä; yksiklikki globella sulkee
+          // HUOM: ei transformia -> billboard, ei "jättibanneri" -efektiä
           style={{
-            pointerEvents: "none",
+            pointerEvents: "auto",
+            cursor: "pointer",
             background: "rgba(13,20,34,0.92)",
             color: "#fff",
             padding: "6px 8px",
@@ -159,6 +138,8 @@ export default function CitiesFeature({
             whiteSpace: "nowrap",
             userSelect: "none",
           }}
+          onClick={() => setLabel(null)}
+          title="Sulje"
         >
           <strong>{label.name}</strong><br />
           {label.pop.toLocaleString("fi-FI")} as.

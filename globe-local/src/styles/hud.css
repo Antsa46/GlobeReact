@@ -1,54 +1,80 @@
+/* ---------- Yleiset HUD-tyylit ---------- */
+:root{
+  --header-h: 48px;
+  --footer-h: 36px; /* käytetään canvasin korkeuden laskentaan */
+}
+
+/* Canvas-kontti: täyttää näytön headerin ja footerin välin */
+.canvas-wrap{
+  position: relative;
+  /* Fallback desktopille */
+  height: calc(100vh - var(--header-h) - var(--footer-h));
+  /* Moderni, tarkempi korkeus (mobiili/Safari/Windows) */
+  height: calc(100dvh - var(--header-h) - var(--footer-h));
+  width: 100%;
+}
+
+/* zoom-hud (oikea alakulma) */
 .zoom-hud{
   position:absolute;
   right:12px;
-  bottom:12px;
+  bottom:calc(var(--footer-h) + 12px); /* jätetään tilaa alapalkille */
   padding:6px 10px;
   background:rgba(0,0,0,.45);
   color:#fff;
   font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   border-radius:8px;
   pointer-events:none;
-}
-.canvas-wrap{
-  position:relative; /* jotta HUD osaa asemoitua Canvasin päälle */
-  height: calc(100vh - 48px);
+  z-index: 20;
 }
 
-/* === Country info overlay === */
-.country-info{
-  pointer-events:none;
-  position:fixed;
-  transform:translate(-50%, -120%);
-  padding:8px 10px;
-  border-radius:10px;
-  background:rgba(0,0,0,.65);
-  color:#fff;
-  font-size:14px;
-  line-height:1.25;
-  white-space:nowrap;
-  backdrop-filter:blur(2px);
-  z-index:1000;
-}
-.country-info .title{
-  font-weight:600;
-  margin-bottom:2px;
+/* ---------- Kiinteä sivu-footer ---------- */
+.site-footer{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0b1220;              /* sama tumma kuin header */
+  color: #fff;
+  z-index: 40;                       /* varmasti canvasin päällä */
+  border-top: 1px solid rgba(255,255,255,0.08);
+  height: var(--footer-h);
+  display: flex;
+  align-items: center;
 }
 
-.credits-footer{
-  position:absolute;
-  left:12px;
-  bottom:12px;
-  padding:6px 10px;
-  background:rgba(0,0,0,.45);
-  color:#fff;
-  font: 11px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  border-radius:8px;
-  pointer-events:auto; /* linkit klikattaviksi */
+.site-footer__inner{
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 12px;
+  font: 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;           /* keskitetty sisältö */
+  white-space: nowrap;               /* yksi rivi */
+  overflow: hidden;                  /* jos tila ei riitä, lyhennä */
+  text-overflow: ellipsis;
 }
-.credits-footer .sep{ margin:0 8px; opacity:.8; }
-.credits-footer a{ color:#a9c6ff; text-decoration:none; }
-.credits-footer a:hover{ text-decoration:underline; }
-@media (max-width: 680px){
-  .credits-footer{ font-size:10px; padding:6px 8px; left:8px; bottom:8px; }
-  .credits-footer .sep{ margin:0 6px; }
+
+.site-footer a{
+  color:#cfe1ff;
+  text-decoration:none;
+}
+.site-footer a:hover{ text-decoration:underline; }
+.site-footer .sep{ opacity:.8; }
+
+@media (max-width: 700px){
+  /* Mobiilissa voi olla hieman korkeampi footer */
+  :root{ --footer-h: 44px; }
+
+  .site-footer__inner{
+    font-size: 11px;
+    gap: 8px;
+  }
+  .zoom-hud{
+    right:8px;
+    bottom:calc(var(--footer-h) + 8px);
+  }
 }
