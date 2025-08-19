@@ -1,46 +1,52 @@
-import React from "react";
+import React, { Suspense, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Globe from "../globe/Globe.jsx";
+import ZoomHUD from "./hud/ZoomHUD.jsx";
 
 export default function GlobeCanvas(props) {
-  const {
-    z, seaLevel, exaggeration, autoSpin, realSunEnabled, dateForSun,
-    riverWidthFactor, lakeErodePx, inlandCap,
-    riverNarrow, riverSharpness, riverMix, lakeMix,
-    showBorders, borderWidthPx, borderOpacity,
-    showCities, minCityPop, cityColorHex,
-  } = props;
+  const { autoSpin, ...globeProps } = props;
+
+  // ZoomHUD tarvitsee viitteen OrbitControls-olioon
+  const controlsRef = useRef(null);
 
   return (
-    <Canvas camera={{ position: [0, 0, 2.6], fov: 45 }}>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 3, 5]} intensity={0.6} />
+    <div className="canvas-wrap">
+      <Canvas
+        camera={{ position: [0, 0, 2.6], fov: 45, near: 0.1, far: 100 }}
+        dpr={[1, 2]}
+      >
+        {/* tausta */}
+        <color attach="background" args={["#0b1220"]} />
 
-      <Globe
-        z={z}
-        seaLevel={seaLevel}
-        exaggeration={exaggeration}
-        autoSpin={autoSpin}
-        realSunEnabled={realSunEnabled}
-        dateForSun={dateForSun}
-        riverWidthFactor={riverWidthFactor}
-        lakeErodePx={lakeErodePx}
-        inlandCap={inlandCap}
-        riverNarrow={riverNarrow}
-        riverSharpness={riverSharpness}
-        riverMix={riverMix}
-        lakeMix={lakeMix}
-        showBorders={showBorders}
-        borderWidthPx={borderWidthPx}
-        borderOpacity={borderOpacity}
-        // kaupungit
-        showCities={showCities}
-        minCityPop={minCityPop}
-        cityColorHex={cityColorHex}
-      />
+        {/* kevyt perusvalo fallback-materiaaleille */}
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[2.5, 1.5, 2.0]} intensity={0.6} />
 
-      <OrbitControls enableDamping dampingFactor={0.08} autoRotate={false} />
-    </Canvas>
+        <Suspense fallback={null}>
+          {/* Globen oma autokierto pidetään pois päältä – pyöritämme kameraa */}
+          <Globe {...globeProps} autoSpin={false} />
+        </Suspense>
+
+        {/* Koko maailman autokierto OrbitControlsilla */}
+        <OrbitControls
+          ref={controlsRef}
+          makeDefault
+          target={[0, 0, 0]}
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.06}
+          rotateSpeed={0.6}
+          autoRotate={!!autoSpin}
+          autoRotateSpeed={0.25} // säädä makusi mukaan
+          // enableZoom
+          // minDistance={1.4}
+          // maxDistance={4.0}
+        />
+      </Canvas>
+
+      {/* HUD tarvitsee saman controlsRefin */}
+      <ZoomHUD controlsRef={controlsRef} />
+    </div>
   );
 }

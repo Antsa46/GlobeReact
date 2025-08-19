@@ -70,11 +70,14 @@ export default function Globe({
     return () => { alive = false; };
   }, [z, riverWidthFactor, lakeErodePx, borderWidthPx]);
 
-  useFrame((_, delta) => {
-    if (autoSpin && groupRef.current) {
-      groupRef.current.rotation.y += delta * (2 * Math.PI / SIDEREAL_DAY) * 8000;
-    }
-  });
+  // --- AUTOKIERTO POIS PÄÄLTÄ ---
+  // Aikaisemmin meillä oli tässä ryhmän pyöritys. Otetaan se nyt kokonaan pois,
+  // jotta auto-kierron napin painaminen ei tee mitään (myöskään Cities ei pyöri).
+  // useFrame((_, delta) => {
+  //   if (autoSpin && groupRef.current) {
+  //     groupRef.current.rotation.y += delta * (2 * Math.PI / SIDEREAL_DAY) * 8000;
+  //   }
+  // });
 
   const sunDir = useMemo(
     () => (realSunEnabled ? sunDirectionFromDate(dateForSun) : new THREE.Vector3(1, 0, 0)),
@@ -109,7 +112,7 @@ export default function Globe({
         )}
       </mesh>
 
-      {/* Kaupunkipisteet overlaynä */}
+      {/* Kaupunkipisteet overlaynä – ei mitään rotaatiota täällä */}
       <CitiesFeature
         radius={1}
         showCities={showCities}
