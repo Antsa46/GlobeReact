@@ -1,23 +1,49 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Html } from "@react-three/drei";
+import * as THREE from "three";
 import CitiesOverlay from "../components/CitiesOverlay";
 import { fetchCitiesFromInternet, buildCitiesMask } from "../lib/cities/cities";
 
-/**
- * Piirtää kaupungit overlaynä. Ei sisällä HUDia.
- * Props:
- *  - scene: THREE.Scene
- *  - radius: number
- *  - showCities: boolean
- *  - minCityPop: number
- *  - cityColorHex: string (esim. "#ffffff")
- */
-export default function CitiesFeature({ scene, radius, showCities, minCityPop, cityColorHex }) {
+// apurit
+const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
+const EARTH_R = 6371;        // km
+const MAX_PICK_KM = 120;     // sietoraja lähimmälle
+
+// *** Sama viitekehys kuin klikkauksessa ***
+// Klikistä johdettu: lon = -(180 - phiDeg)  ->  phiDeg = 180 + lon
+function lonLatToVec3(lonDeg, latDeg, radius = 1.0) {
+  const lat = latDeg * DEG;
+  const phi = (180 + lonDeg) * DEG;          // << korjaus: + eikä -
+  const cosLat = Math.cos(lat);
+  return new THREE.Vector3(
+    -radius * Math.cos(phi) * cosLat,
+    +radius * Math.sin(lat),
+    +radius * Math.sin(phi) * cosLat
+  );
+}
+function angularDistanceRad(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1 * DEG, φ2 = lat2 * DEG;
+  const Δφ = (lat2 - lat1) * DEG;
+  const Δλ = (lon2 - lon1) * DEG;
+  const s = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+export default function CitiesFeature({
+  radius,
+  showCities,
+  minCityPop,
+  cityColorHex,
+}) {
   const [cities, setCities] = useState([]);
   const [mask, setMask] = useState(null);
+  const [label, setLabel] = useState(null); // {name, pop, lon, lat}
 
-  // Lataa kaupungit kerran, kun overlay halutaan näkyviin
+  // Lataa kaupungit
   useEffect(() => {
-    if (!showCities || cities.length) return;
+    if (!showCities && !label) return;
+    if (cities.length) return;
     let alive = true;
     (async () => {
       try {
@@ -29,9 +55,9 @@ export default function CitiesFeature({ scene, radius, showCities, minCityPop, c
       }
     })();
     return () => { alive = false; };
-  }, [showCities, cities.length]);
+  }, [showCities, label, cities.length]);
 
-  // Rakenna maski kun data/raja muuttuu
+  // Rakenna maski näkyville pisteille
   useEffect(() => {
     if (!showCities || !cities.length) {
       if (mask) setMask(null);
@@ -45,20 +71,98 @@ export default function CitiesFeature({ scene, radius, showCities, minCityPop, c
     });
     setMask(tex);
     return () => tex?.dispose?.();
-  }, [showCities, cities, minCityPop]);
+  }, [showCities, cities, minCityPop]); // eslint-disable-line
+
+  // Tuplaklikki: LOCAL point -> lon/lat -> lähin kaupunki
+  const onPickPoint = useCallback(({ x, y, z }) => {
+    const r = Math.sqrt(x*x + y*y + z*z);
+    const lat = Math.asin(y / r) * RAD;
+
+    // φ = atan2(z, -x)  (sauma +X)
+    let phiDeg = Math.atan2(z, -x) * RAD;
+    if (phiDeg < 0) phiDeg += 360;
+    const lon = -(180 - phiDeg);   // tämä on sinulla todetusti oikein
+
+    if (!cities.length) return;
+
+    let best = null;
+    let bestRad = Infinity;
+    for (const c of cities) {
+      const ang = angularDistanceRad(lat, lon, c.lat, c.lon);
+      if (ang < bestRad) { bestRad = ang; best = c; }
+    }
+    const km = EARTH_R * bestRad;
+    if (!best || km > MAX_PICK_KM) { setLabel(null); return; }
+
+    setLabel({ name: best.name, pop: best.pop, lon: best.lon, lat: best.lat });
+  }, [cities]);
+
+  // Yhden klikin sulkeminen: viive + dblclick peruu
+  const clickTimerRef = useRef(null);
+  useEffect(() => {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) return;
+
+    const onClick = () => {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = setTimeout(() => setLabel(null), 220);
+    };
+    const onDbl = () => {
+      // käyttäjä tuplaklikkaa -> ei suljeta labelia klikkien välissä
+      clearTimeout(clickTimerRef.current);
+    };
+
+    canvas.addEventListener("click", onClick);
+    canvas.addEventListener("dblclick", onDbl);
+
+    return () => {
+      clearTimeout(clickTimerRef.current);
+      canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("dblclick", onDbl);
+    };
+  }, []);
+
+  // Label paikoilleen – suoraan pinnalle (ei nostoa)
+  const labelPos = useMemo(() => {
+    if (!label) return null;
+    return lonLatToVec3(label.lon, label.lat, radius);
+  }, [label, radius]);
 
   return (
     <>
       {mask && (
         <CitiesOverlay
-          scene={scene}
           radius={radius}
           map={mask}
           visible={!!showCities}
           opacity={0.75}
           blending="normal"
           colorHex={cityColorHex}
+          onPickPoint={onPickPoint} // tuplaklikki -> valitse
         />
+      )}
+
+      {/* Klikatun kaupungin label */}
+      {label && labelPos && (
+        <Html
+          position={labelPos}
+          center
+          // label ei estä klikkejä; yksiklikki globella sulkee
+          style={{
+            pointerEvents: "none",
+            background: "rgba(13,20,34,0.92)",
+            color: "#fff",
+            padding: "6px 8px",
+            borderRadius: 8,
+            font: "12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
+            whiteSpace: "nowrap",
+            userSelect: "none",
+          }}
+        >
+          <strong>{label.name}</strong><br />
+          {label.pop.toLocaleString("fi-FI")} as.
+        </Html>
       )}
     </>
   );

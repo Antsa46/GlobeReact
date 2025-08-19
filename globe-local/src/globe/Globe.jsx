@@ -111,7 +111,6 @@ export default function Globe({
 
       {/* Kaupunkipisteet overlaynä */}
       <CitiesFeature
-        scene={groupRef.current?.parent}
         radius={1}
         showCities={showCities}
         minCityPop={minCityPop}

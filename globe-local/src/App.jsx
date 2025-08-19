@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from "react";
 import GlobeCanvas from "./components/GlobeCanvas";
-import WaterControls from "./components/controls/WaterControls";
-import CitiesControls from "./components/hud/CitiesControls.jsx";
+import SidePanel from "./components/panel/SidePanel.jsx";
+import WaterSection from "./components/sections/WaterSection.jsx";
+import BordersSection from "./components/sections/BordersSection.jsx";
+import CitiesSection from "./components/sections/CitiesSection.jsx";
 import "./styles/App.css";
+import "./styles/panel.css";
 
 export default function App() {
   const [z, setZ] = useState(2);
@@ -46,11 +49,12 @@ export default function App() {
 
   // Cities
   const [showCities, setShowCities] = useState(true);
-  const [minCityPop, setMinCityPop] = useState(100000);
+  const [minCityPop, setMinCityPop] = useState(1000);
   const [cityColorHex, setCityColorHex] = useState("#ffffff");
 
   return (
     <div style={{ height:"100vh", background:"#0b1220", color:"#fff" }}>
+      {/* yläpalkki */}
       <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:10, padding:"8px 12px",
         display:"flex", gap:12, alignItems:"center", flexWrap:"wrap",
         background:"rgba(11,18,32,0.85)", backdropFilter:"blur(6px)" }}>
@@ -87,30 +91,32 @@ export default function App() {
       </div>
       <div style={{ height: 48 }} />
 
-      {/* Oikean reunan paneeli */}
-      <WaterControls
-  open={panelOpen} setOpen={setPanelOpen}
-  riverWidthFactor={riverWidthFactor} setRiverWidthFactor={setRiverWidthFactor}
-  lakeErodePx={lakeErodePx} setLakeErodePx={setLakeErodePx}
-  inlandCap={inlandCap} setInlandCap={setInlandCap}
-  riverNarrowUI={riverNarrowUI} setRiverNarrowUI={setRiverNarrowUI}
-  riverSharpness={riverSharpness} setRiverSharpness={setRiverSharpness}
-  riverMix={riverMix} setRiverMix={setRiverMix}
-  lakeMix={lakeMix} setLakeMix={setLakeMix}
-  showBorders={showBorders} setShowBorders={setShowBorders}
-  borderWidthPx={borderWidthPx} setBorderWidthPx={setBorderWidthPx}
-  borderOpacity={borderOpacity} setBorderOpacity={setBorderOpacity}
->
-  <CitiesControls
-    showCities={showCities}
-    setShowCities={setShowCities}
-    minCityPop={minCityPop}
-    setMinCityPop={setMinCityPop}
-    cityColorHex={cityColorHex}
-    setCityColorHex={setCityColorHex}
-  />
-</WaterControls>
+      {/* Sivupaneeli osioineen */}
+      <SidePanel open={panelOpen} onClose={()=>setPanelOpen(false)} title="Joet & järvet">
+        <WaterSection
+          riverWidthFactor={riverWidthFactor} setRiverWidthFactor={setRiverWidthFactor}
+          riverNarrowUI={riverNarrowUI} setRiverNarrowUI={setRiverNarrowUI}
+          riverSharpness={riverSharpness} setRiverSharpness={setRiverSharpness}
+          riverMix={riverMix} setRiverMix={setRiverMix}
+          lakeErodePx={lakeErodePx} setLakeErodePx={setLakeErodePx}
+          lakeMix={lakeMix} setLakeMix={setLakeMix}
+          inlandCap={inlandCap} setInlandCap={setInlandCap}
+        />
 
+        <BordersSection
+          showBorders={showBorders} setShowBorders={setShowBorders}
+          borderWidthPx={borderWidthPx} setBorderWidthPx={setBorderWidthPx}
+          borderOpacity={borderOpacity} setBorderOpacity={setBorderOpacity}
+        />
+
+        <CitiesSection
+          showCities={showCities} setShowCities={setShowCities}
+          minCityPop={minCityPop} setMinCityPop={setMinCityPop}
+          cityColorHex={cityColorHex} setCityColorHex={setCityColorHex}
+        />
+      </SidePanel>
+
+      {/* 3D-kartta */}
       <GlobeCanvas
         z={z}
         seaLevel={sea}
@@ -121,14 +127,17 @@ export default function App() {
         riverWidthFactor={riverWidthFactor}
         lakeErodePx={lakeErodePx}
         inlandCap={inlandCap}
-        riverNarrow={riverNarrow}
+        riverNarrow={useMemo(() => {
+          const t = Math.max(0, Math.min(6, riverNarrowUI)) / 6;
+          return (1 - t) * (+0.30) + t * (-0.30);
+        }, [riverNarrowUI])}
         riverSharpness={riverSharpness}
         riverMix={riverMix}
         lakeMix={lakeMix}
         showBorders={showBorders}
         borderWidthPx={borderWidthPx}
         borderOpacity={borderOpacity}
-        // kaupungit globelle
+        // kaupungit
         showCities={showCities}
         minCityPop={minCityPop}
         cityColorHex={cityColorHex}

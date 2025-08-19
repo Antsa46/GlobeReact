@@ -1,59 +1,45 @@
-import { useMemo, useEffect } from "react";
+import React, { useCallback } from "react";
 import * as THREE from "three";
 
 export default function CitiesOverlay({
-  scene,
   radius,
   map,
   opacity = 0.75,
   visible = true,
-  blending = "normal", // "normal" ei haalista jokia
+  blending = "normal",
   colorHex = "#ffffff",
+  onPickPoint,                   // ({x,y,z}) local-space
 }) {
-  const mesh = useMemo(() => {
-    const geometry = new THREE.SphereGeometry(radius + 0.003, 128, 64);
-    const material = new THREE.MeshBasicMaterial({
-      map: null,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending:
-        blending === "add" ? THREE.AdditiveBlending : THREE.NormalBlending,
-      opacity,
-      color: new THREE.Color(colorHex),
-      toneMapped: false,
-    });
-    const m = new THREE.Mesh(geometry, material);
-    m.frustumCulled = true;
-    m.renderOrder = 999;
-    return m;
-  }, [radius, blending, opacity, colorHex]);
+  const handleDoubleClick = useCallback(
+    (e) => {
+      const hit = e.intersections?.find((i) => i.object === e.object) || null;
+      const pWorld = hit?.point || e.point;
+      if (!pWorld) return;
+      const pLocal = pWorld.clone();
+      e.object.worldToLocal(pLocal);           // <- tärkeä!
+      onPickPoint?.({ x: pLocal.x, y: pLocal.y, z: pLocal.z });
+      e.stopPropagation?.();
+    },
+    [onPickPoint]
+  );
 
-  useEffect(() => {
-    if (scene && mesh) {
-      scene.add(mesh);
-      return () => scene.remove(mesh);
-    }
-  }, [scene, mesh]);
-
-  useEffect(() => {
-    if (mesh?.material) {
-      mesh.material.map = map || null;
-      mesh.material.needsUpdate = true;
-    }
-  }, [map, mesh]);
-
-  useEffect(() => {
-    if (mesh) mesh.visible = !!visible && !!map;
-  }, [visible, map, mesh]);
-
-  useEffect(() => {
-    if (mesh?.material) {
-      mesh.material.opacity = opacity;
-      mesh.material.color.set(colorHex);
-      mesh.material.needsUpdate = true;
-    }
-  }, [opacity, colorHex, mesh]);
-
-  return null;
+  return (
+    <mesh
+      renderOrder={999}
+      visible={!!visible && !!map}
+      onDoubleClick={handleDoubleClick}
+    >
+      <sphereGeometry args={[radius + 0.003, 128, 64]} />
+      <meshBasicMaterial
+        map={map || null}
+        transparent
+        depthTest={false}
+        depthWrite={false}
+        toneMapped={false}
+        opacity={opacity}
+        color={colorHex}
+        blending={blending === "add" ? THREE.AdditiveBlending : THREE.NormalBlending}
+      />
+    </mesh>
+  );
 }

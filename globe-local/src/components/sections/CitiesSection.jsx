@@ -1,7 +1,7 @@
 import React from "react";
-import "../../styles/panel.css";
 
-export default function CitiesControls({
+/** Kaupunkien asetukset */
+export default function CitiesSection({
   showCities, setShowCities,
   minCityPop, setMinCityPop,
   cityColorHex, setCityColorHex,
