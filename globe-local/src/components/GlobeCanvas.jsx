@@ -3,7 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Globe from "../globe/Globe.jsx";
 import ZoomHUD from "./hud/ZoomHUD.jsx";
-import CountryInfoFeature from "../features/CountryInfoFeature.jsx";
+import CreditsFooter from "./hud/CreditsFooter.jsx"; 
 
 export default function GlobeCanvas(props) {
   const { autoSpin, ...globeProps } = props;
@@ -11,24 +11,13 @@ export default function GlobeCanvas(props) {
 
   return (
     <div className="canvas-wrap">
-      <Canvas
-        camera={{ position: [0, 0, 2.6], fov: 45, near: 0.1, far: 100 }}
-        dpr={[1, 2]}
-      >
-        {/* tausta */}
+      <Canvas camera={{ position: [0, 0, 2.6], fov: 45, near: 0.1, far: 100 }} dpr={[1, 2]}>
         <color attach="background" args={["#0b1220"]} />
-
-        {/* perusvalot */}
         <ambientLight intensity={0.6} />
         <directionalLight position={[2.5, 1.5, 2.0]} intensity={0.6} />
-
         <Suspense fallback={null}>
           <Globe {...globeProps} autoSpin={false} />
         </Suspense>
-
-        {/* UUSI: maa-info toimii Canvasin sisällä ja piirtää Html-overlayn kursorin kohtaan */}
-        <CountryInfoFeature holdMs={3000} />
-
         <OrbitControls
           ref={controlsRef}
           makeDefault
@@ -42,7 +31,9 @@ export default function GlobeCanvas(props) {
         />
       </Canvas>
 
+      {/* HUDit Canvasin päällä */}
       <ZoomHUD controlsRef={controlsRef} />
+      <CreditsFooter /> {/* ← UUSI */}
     </div>
   );
 }
