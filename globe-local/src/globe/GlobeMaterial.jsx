@@ -56,7 +56,6 @@ export default function GlobeMaterial({
     ]
   );
 
-  // ——— sinun aiempi vertexShader sellaisenaan ———
   const vertexShader = /* glsl */`
     uniform sampler2D terrarium;
     uniform float seaLevel;
@@ -86,13 +85,17 @@ export default function GlobeMaterial({
       vec2 uvM = lonLatToMercatorUV(lon, lat);
       float meters = terrariumMeters(texture2D(terrarium, uvM).rgb);
       float disp = (meters - seaLevel) * dispScale;
+
       vec3 displaced = position + normalize(position) * disp;
+
+      // world-normal yksinkertaisesti säteensuunnassa
       vNormalW = normalize(mat3(modelMatrix) * normalize(displaced));
-      gl_Position = projectionMatrix * viewMatrix * vec4(displaced, 1.0);
+
+      // *** tärkeä korjaus: käytä modelViewMatrixia (ei pelkkää viewMatrixia) ***
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0); // <<<
     }
   `;
 
-  // ——— sinun aiempi fragmentShader + rajat ———
   const fragmentShader = /* glsl */`
     uniform sampler2D terrarium;
     uniform sampler2D waterMask;   // R = lakes, G = rivers
@@ -194,19 +197,18 @@ export default function GlobeMaterial({
         }
       }
 
-      // rantapisteet
       float shoreBand = 6.0;
       float nearShore = 1.0 - clamp(abs(rel)/shoreBand, 0.0, 1.0);
       float speckle = step(0.92, hash12(vUvEQ*vec2(4096.0,2048.0)));
       float dots = speckle * nearShore;
       color = mix(color, vec3(0.0), dots*0.6);
 
-      // maiden rajat (overlay)
       if (showBorders > 0.5 && hasBorders > 0.5){
-        float b = texture2D(bordersMask, uvM).r;          // 0..1 viivalla
+        float b = texture2D(bordersMask, uvM).r;
         color = mix(color, borderColor, b * borderOpacity);
       }
 
+      // Sun pysyy paikallaan (world-space normaali vs world-space sunDir)
       float lambert = max(dot(normalize(vNormalW), normalize(sunDir)), 0.0);
       float lit = mix(1.0, 0.25 + 1.25 * lambert, enableSun);
       color *= lit;

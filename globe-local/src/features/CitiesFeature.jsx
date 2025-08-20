@@ -174,8 +174,7 @@ export default function CitiesFeature({
           position={labelPos}
           center
           style={{
-            pointerEvents: "auto",
-            cursor: "pointer",
+           pointerEvents: "none",
             background: "rgba(13,20,34,0.92)",
             color: "#fff",
             padding: "6px 8px",

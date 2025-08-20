@@ -7,13 +7,15 @@ import React, {
   forwardRef
 } from "react";
 import * as THREE from "three";
-import { useThree } from "@react-three/fiber";
+import { useThree, useFrame } from "@react-three/fiber";
 import GlobeMaterial from "./GlobeMaterial.jsx";
 import { buildTerrariumMosaic } from "../lib/terrain/terrarium.js";
 import { buildWaterMaskTexture } from "../lib/water/waterMask.js";
 import { buildBordersMaskTexture } from "../lib/borders/bordersMask.js";
 import { sunDirectionFromDate } from "../lib/sun/astronomy.js";
 import CitiesFeature from "../features/CitiesFeature.jsx";
+
+const SIDEREAL_DAY = 86164;
 
 function Globe(
   {
@@ -52,11 +54,8 @@ function Globe(
   const [maskTex, setMaskTex] = useState(null);
   const [bordersTex, setBordersTex] = useState(null);
   const groupRef = useRef();
-
-  // globen meshistä ref (CountryInfoFeature raycastaa tätä)
   const globeMeshRef = useRef(null);
 
-  // three-viitteet imperatiivista käyttöä varten
   const { gl, camera, controls } = useThree();
 
   // lataa mosaikki + maskit
@@ -89,13 +88,21 @@ function Globe(
     [realSunEnabled, dateForSun]
   );
 
+  // AUTOKIERTO: pyöritä koko ryhmää (maa + kaupungit)
+  useFrame((_, delta) => {
+    if (autoSpin && groupRef.current) {
+      groupRef.current.rotation.y += delta * (2 * Math.PI / SIDEREAL_DAY) * 8000;
+    }
+  });
+
   // Imperatiiviset getterit (CountryInfoFeature käyttää näitä)
   useImperativeHandle(ref, () => ({
     getRenderer: () => gl || null,
     getCamera: () => camera || null,
     getControls: () => controls || null,
     getCanvas: () => (gl ? gl.domElement : null),
-    getGlobeMesh: () => globeMeshRef.current || null
+    getGlobeMesh: () => globeMeshRef.current || null,
+    getGroup: () => groupRef.current || null,
   }), [gl, camera, controls]);
 
   return (
@@ -126,7 +133,7 @@ function Globe(
         )}
       </mesh>
 
-      {/* Kaupunkipisteet overlaynä – ei mitään rotaatiota täällä */}
+      {/* Kaupunkipisteet overlaynä – ei omaa rotaatiota */}
       <CitiesFeature
         radius={1}
         showCities={showCities}

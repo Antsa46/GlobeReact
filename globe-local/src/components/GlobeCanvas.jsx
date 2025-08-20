@@ -3,12 +3,13 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Globe from "../globe/Globe.jsx";
 import ZoomHUD from "./hud/ZoomHUD.jsx";
-import SiteFooter from "./hud/SiteFooter.jsx"; // ← uusi, koko sivun leveä alapalkki
+import SiteFooter from "./hud/SiteFooter.jsx";
 import CountryInfoFeature from "../features/CountryInfoFeature.jsx";
 
 export default function GlobeCanvas(props) {
   const { autoSpin, ...globeProps } = props;
   const controlsRef = useRef(null);
+  const globeRef = useRef(null);
 
   return (
     <div className="canvas-wrap">
@@ -24,8 +25,8 @@ export default function GlobeCanvas(props) {
         <directionalLight position={[2.5, 1.5, 2.0]} intensity={0.6} />
 
         <Suspense fallback={null}>
-          {/* Globen oma autokierto pois – pyöritämme kameraa */}
-          <Globe {...globeProps} autoSpin={false} />
+          {/* Pallo pyörii (autospin Globe-komponentissa), kamera ei */}
+          <Globe ref={globeRef} {...globeProps} autoSpin={autoSpin} />
         </Suspense>
 
         {/* Maa-info (3 s paikallaan) */}
@@ -39,15 +40,15 @@ export default function GlobeCanvas(props) {
           enableDamping
           dampingFactor={0.06}
           rotateSpeed={0.6}
-          autoRotate={!!autoSpin}
-          autoRotateSpeed={0.25}
+          autoRotate={false}          // kamera ei pyöri automaattisesti
+          enableZoom                   // zoom päälle (jos ei ollut)
+          minDistance={1.14}           // lähin sallittu zoom
+          maxDistance={10}             // kaukaisin sallittu zoom
         />
       </Canvas>
 
-      {/* HUDit Canvasin päällä (ei vaikuta raycasteriin) */}
+      {/* HUDit Canvasin päällä */}
       <ZoomHUD controlsRef={controlsRef} />
-
-      {/* Sivun alaosan kiinteä alapalkki */}
       <SiteFooter />
     </div>
   );
