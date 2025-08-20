@@ -7,13 +7,16 @@ import {
   getCountries,
   findCountryAt,
   getPopulation,
-} from "../lib/countries/countries"; // <-- ei fmt
+} from "../lib/countries/countries";
 
 // pieni paikallinen formatteri (FI-ryhmittely, viiva jos puuttuu)
 const fmt = (n) => (n == null ? "—" : Math.round(n).toLocaleString("fi-FI"));
 
 // kuinka paikallaan hiiren pitää pysyä (px) ennen syttymistä
 const STILL_PX = 4;
+
+// klikkisulun suojaviive (ettei juuri labelin syntyhetken klikkaus sulje)
+const DISMISS_GUARD_MS = 150;
 
 export default function CountryInfoFeature({ holdMs = 3000 }) {
   const { camera, scene, pointer, gl } = useThree();
@@ -25,6 +28,7 @@ export default function CountryInfoFeature({ holdMs = 3000 }) {
   const [label, setLabel] = useState(null);
 
   const ray = useRef(new THREE.Raycaster());
+  const shownAtRef = useRef(0);
   const st = useRef({
     key: null,
     stillMs: 0,
@@ -36,9 +40,10 @@ export default function CountryInfoFeature({ holdMs = 3000 }) {
   // sama muunnos kuin teidän tuplaklikissä
   function localToLonLat({ x, y, z }) {
     const RAD = 180 / Math.PI;
+    const DEG = 180 / Math.PI; // (vain selkeydeksi; alla käytämme RAD/DEG-ajatusta)
     const r = Math.sqrt(x * x + y * y + z * z);
-    const lat = Math.asin(y / r) * RAD;
-    let phiDeg = Math.atan2(z, -x) * RAD;
+    const lat = Math.asin(y / r) * (180 / Math.PI);
+    let phiDeg = Math.atan2(z, -x) * (180 / Math.PI);
     if (phiDeg < 0) phiDeg += 360;
     const lon = -(180 - phiDeg);
     return { lon, lat };
@@ -104,17 +109,34 @@ export default function CountryInfoFeature({ holdMs = 3000 }) {
     if (!label && st.current.key && st.current.stillMs >= holdMs) {
       const worldPos = st.current.pos.clone();
       const fireKey = st.current.key;
+
+      shownAtRef.current = performance.now(); // suojaviiveen aloitus
       setLabel({ key: fireKey, name, pop: null, year: null, pos: worldPos.toArray() });
 
-      // World Bank WDI: palauttaa { value, year }
+      // World Bank WDI: palauttaa { value, year } (tai joskus pelkän numeron)
       (async () => {
-        const res = await getPopulation(iso3, name);
-        const value = typeof res === "number" ? res : res?.value ?? null;
-        const year  = typeof res === "number" ? null : res?.year ?? null;
-        setLabel(cur => (cur && cur.key === fireKey) ? { ...cur, pop: value, year } : cur);
+        try {
+          const res = await getPopulation(iso3, name);
+          const value = typeof res === "number" ? res : res?.value ?? null;
+          const year  = typeof res === "number" ? null : res?.year ?? null;
+          setLabel(cur => (cur && cur.key === fireKey) ? { ...cur, pop: value, year } : cur);
+        } catch {
+          // no-op
+        }
       })();
     }
   });
+
+  // Yhden klikin sulku missä tahansa (label näkyy → klikkaus sulkee)
+  useEffect(() => {
+    if (!label) return;
+    const onDocPointerDown = () => {
+      if (performance.now() - shownAtRef.current < DISMISS_GUARD_MS) return; // suojaviive
+      setLabel(null);
+    };
+    window.addEventListener("pointerdown", onDocPointerDown, true);
+    return () => window.removeEventListener("pointerdown", onDocPointerDown, true);
+  }, [label]);
 
   if (!label) return null;
 
@@ -123,11 +145,10 @@ export default function CountryInfoFeature({ holdMs = 3000 }) {
       position={label.pos}
       transform={false}
       center
-      pointerEvents="auto"
+      pointerEvents="none"       // klikki läpäisee suoraan dokumentille
       zIndexRange={[100, 2000]}
     >
       <div
-        onPointerLeave={() => setLabel(null)}
         style={{
           padding: "6px 9px",
           borderRadius: 10,

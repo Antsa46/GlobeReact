@@ -1,7 +1,7 @@
 /* ---------- Yleiset HUD-tyylit ---------- */
 :root{
   --header-h: 48px;
-  --footer-h: 36px; /* käytetään canvasin korkeuden laskentaan */
+  --footer-h: 30px; /* käytetään canvasin korkeuden laskentaan */
 }
 
 /* Canvas-kontti: täyttää näytön headerin ja footerin välin */

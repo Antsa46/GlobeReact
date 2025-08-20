@@ -11,65 +11,77 @@ export default function SiteFooter() {
         height: open ? "auto" : "var(--footer-h)",
         display: open ? "block" : "flex",
         overflow: open ? "auto" : "hidden",
-        paddingTop: open ? 8 : 0,
-        paddingBottom: open ? 8 : 0,
+        paddingTop: open ? 6 : 0,
+        paddingBottom: open ? 6 : 0,
       }}
       aria-label="Tietolähteet, lisenssit ja vastuuvapaus"
     >
-      {/* Yhteenvetorivi (näkyy aina) */}
-      <div className="site-footer__inner" style={{ justifyContent: "space-between" }}>
+      {/* tiivis yhteenvetorivi */}
+      <div
+        className="site-footer__inner"
+        style={{
+          justifyContent: "space-between",
+          gap: 8,
+          fontSize: "clamp(9px, 0.85vw, 11px)",   // vielä pykälä pienempi
+          lineHeight: 1.1,
+        }}
+      >
         <div
           className="site-footer__summary"
           style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          title="Yhteenveto käytetyistä aineistoista ja lisensseistä"
         >
-          <strong style={{ marginRight: 10 }}>Lähteet:</strong>
-          <span>
-            Borders, countries &amp; cities:{" "}
+          <strong style={{ marginRight: 8 }}>Lähteet:</strong>
+
+          {/* Lyhyet nimet + tooltipit täyteen muotoon */}
+          <span title="Borders, countries & cities: Natural Earth (Public Domain)">
             <a
               href="https://www.naturalearthdata.com/about/terms-of-use/"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Natural Earth (Public Domain)
+              NE (PD)
             </a>
           </span>
-          <span className="sep"> &nbsp;•&nbsp; </span>
-          <span>
-            Population (countries):{" "}
+
+          <span className="sep"> • </span>
+
+          <span title="World Bank – World Development Indicators (CC BY 4.0)">
             <a
               href="https://datacatalog.worldbank.org/search/dataset/0037712/World-Development-Indicators"
               target="_blank"
               rel="noopener noreferrer"
             >
-              World Bank WDI
-            </a>{" "}
-            (CC&nbsp;BY&nbsp;4.0)
+              WDI (CC BY 4.0)
+            </a>
           </span>
-          <span className="sep"> &nbsp;•&nbsp; </span>
-          <span>
-            City lookups: Wikipedia Geosearch; population:{" "}
+
+          <span className="sep"> • </span>
+
+          <span title="City lookups via Wikipedia Geosearch; population from Wikidata (CC0)">
             <a
               href="https://www.wikidata.org/wiki/Wikidata:Licensing"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Wikidata (CC0)
+              Wikipedia+Wikidata (CC0)
             </a>
           </span>
-          <span className="sep"> &nbsp;•&nbsp; </span>
-          <span>
-            Elevation:{" "}
+
+          <span className="sep"> • </span>
+
+          <span title="Elevation: Mapzen Terrain Tiles on AWS">
             <a
               href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Mapzen Terrain Tiles on AWS
+              Mapzen Terrain (AWS)
             </a>
           </span>
-          <span className="sep"> &nbsp;•&nbsp; </span>
-          {/* UUSI: lyhyt vastuumuistutus yhteenvetoriville */}
-          <span style={{ opacity: 0.8 }}>Suuntaa-antava data</span>
+
+          <span className="sep"> • </span>
+          <span style={{ opacity: 0.8 }}>Suuntaa-antava</span>
         </div>
 
         <button
@@ -81,9 +93,10 @@ export default function SiteFooter() {
             color: "#cfe1ff",
             border: "1px solid rgba(255,255,255,0.25)",
             borderRadius: 6,
-            padding: "4px 8px",
+            padding: "3px 8px",
             cursor: "pointer",
             whiteSpace: "nowrap",
+            fontSize: "clamp(9px, 0.85vw, 11px)",
           }}
           title={open ? "Sulje lisätiedot" : "Näytä lisätiedot"}
         >
@@ -91,7 +104,7 @@ export default function SiteFooter() {
         </button>
       </div>
 
-      {/* Laajennettu paneeli (näkyy vain kun open) */}
+      {/* laajennettu paneeli */}
       {open && (
         <div
           id="attributions-panel"
@@ -106,8 +119,7 @@ export default function SiteFooter() {
         >
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>
-              <strong>Natural Earth</strong> – rajat, maat &amp; kaupungit. Julkinen domain.
-              Suositus: “Made with Natural Earth”.{" "}
+              <strong>Natural Earth</strong> – rajat, maat &amp; kaupungit (Public Domain).{" "}
               <a
                 href="https://www.naturalearthdata.com/about/terms-of-use/"
                 target="_blank"
@@ -118,8 +130,7 @@ export default function SiteFooter() {
               .
             </li>
             <li>
-              <strong>World Bank – World Development Indicators (WDI)</strong> – maiden
-              väkiluvut. Lisenssi: CC BY 4.0 (vaatii lähdemaininnan).{" "}
+              <strong>World Bank – WDI</strong> – maiden väkiluvut (CC BY 4.0).{" "}
               <a
                 href="https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets"
                 target="_blank"
@@ -130,7 +141,7 @@ export default function SiteFooter() {
               .
             </li>
             <li>
-              <strong>Wikidata</strong> – kaupunkien väkiluvut (P1082) ja ajankohta (P585), lisenssi CC0.{" "}
+              <strong>Wikidata</strong> – kaupunkien väkiluvut (P1082) &amp; ajankohta (P585), CC0.{" "}
               <a
                 href="https://www.wikidata.org/wiki/Wikidata:Licensing"
                 target="_blank"
@@ -138,23 +149,21 @@ export default function SiteFooter() {
               >
                 Licensing
               </a>
-              . Lisäksi hyödynnämme <strong>Wikipedia Geosearch</strong> -rajapintaa QID:ien paikantamiseen
-              (ei Wikipedia-tekstin näyttöä).
+              . Wikipedia Geosearchia käytetään vain QID-paikannukseen.
             </li>
             <li>
-              <strong>Elevation (Terrarium tiles)</strong> –{" "}
+              <strong>Mapzen Terrain Tiles (AWS)</strong> –{" "}
               <a
                 href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Mapzen Terrain Tiles on AWS
+                attribution
               </a>
               .
             </li>
           </ul>
 
-          {/* UUSI: selkeä vastuuvapauslauseke */}
           <div
             style={{
               marginTop: 10,
@@ -163,11 +172,8 @@ export default function SiteFooter() {
               opacity: 0.9,
             }}
           >
-            <strong>Vastuuvapaus:</strong> Tämä sovellus ja sen data ovat suuntaa-antavia ja
-            toimitetaan “sellaisinaan” ilman mitään takuuta. Tiedot voivat olla
-            puutteellisia, vanhentuneita tai virheellisiä (esim. rajaukset,
-            väkiluvut, ajoitus). Älä käytä turvallisuus- tai viranomais-
-            kriittisiin tarkoituksiin.
+            <strong>Vastuuvapaus:</strong> data on suuntaa-antavaa ja voi olla
+            puutteellista tai vanhentunutta. Ei turvallisuus- tai viranomaiskäyttöön.
           </div>
         </div>
       )}
